@@ -1,0 +1,40 @@
+name: Deploy to AKS (Student Safe)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "game-service/**"
+      - "order-service/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Decode kubeconfig
+      run: |
+        echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+
+    - name: Login to ACR
+      run: |
+        echo "${{ secrets.ACR_PASSWORD }}" | docker login lugxgamingacr.azurecr.io -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+    - name: Build & Push game-service
+      run: |
+        docker build -t lugxgamingacr.azurecr.io/game-service:latest ./game-service
+        docker push lugxgamingacr.azurecr.io/game-service:latest
+
+    - name: Build & Push order-service
+      run: |
+        docker build -t lugxgamingacr.azurecr.io/order-service:latest ./order-service
+        docker push lugxgamingacr.azurecr.io/order-service:latest
+
+    - name: Deploy to AKS
+      run: |
+        kubectl apply -f YAML-order/
+        kubectl rollout restart deployment game-service
+        kubectl rollout restart deployment order-service
